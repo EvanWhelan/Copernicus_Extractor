@@ -8,18 +8,18 @@ from time import sleep
 from decimal import Decimal
 
 class DatabaseController():
-    def __init__(self, grib_file_name, create_table_flag):
+    def __init__(self, grib_file_name):
         self.conn = None
         self.cursor = None
         self.csv_file_name = grib_file_name
         self.table_name = ""
-        self.initialise_connection(create_table_flag)
+        self.initialise_connection(False)
 
     def initialise_connection(self, create_table_flag):
         try:
             db_name = config.db_name
             user_name = config.user_name
-            password = "<password_here>"
+            password = self.read_password()
             connection_string = "dbname='{}' user='{}' password='{}'".format(db_name, user_name, password)
             self.conn = psy.connect(connection_string)
             self.cursor = self.conn.cursor()
@@ -47,6 +47,7 @@ class DatabaseController():
         except Exception as e:
             print("Table creation failed {}".format(e))
 
+    # this is for testing purposes, passwords will not be stored locally going forward
     def read_password(self):
         with open('/usr/local/home/u180539/Final-Year-Project/o/pw.txt') as f:
             return f.readline().strip()
@@ -59,7 +60,7 @@ class DatabaseController():
                     self.cursor.execute(query)
                     self.conn.commit()
                 except Exception as e:
-                    print e
+                    print(e)
 
     def build_query(self, csv_line):            
         data = csv_line.split(',')
@@ -69,4 +70,23 @@ class DatabaseController():
         pollutant = float(data[6]) * config.scale_factor
         query = config.sql_query.format(self.table_name, timestamp, longitude, latitude, pollutant)
         return query.replace('"', "'")
+    
+    def table_exists(self):
+        return True
+
+    def build_map(self):
+        lat_lon_query = "SELECT timestamp, pollutant from copernicus_data_example1 where latitude=51.45 and longitude=-7.95;"
+        self.cursor.execute(lat_lon_query)
+        lat_lon_data = self.cursor.fetchall()
+        self.cursor.close()
+        self.conn.close()
+
+        
+        y_axis = [y[1] for y in lat_lon_data]
+        x_axis = [i for i in range(1, len(y_axis))]
+        plt.plot(x_axis, y_axis)
+        plt.show()
+
+        bounding_box = (min_lon, max_lon, min_lat, max_lat)
+        print(bounding_box)
 
