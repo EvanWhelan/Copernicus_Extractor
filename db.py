@@ -2,6 +2,7 @@ import psycopg2 as psy
 import config
 import numpy as np
 import pandas as pd
+import ntpath
 import matplotlib.pyplot as plt
 from operator import itemgetter
 from time import sleep
@@ -13,9 +14,9 @@ class DatabaseController():
         self.cursor = None
         self.csv_file_name = grib_file_name
         self.table_name = ""
-        self.initialise_connection(False)
+        self.initialise_connection()
 
-    def initialise_connection(self, create_table_flag):
+    def initialise_connection(self):
         try:
             db_name = config.db_name
             user_name = config.user_name
@@ -24,14 +25,11 @@ class DatabaseController():
             self.conn = psy.connect(connection_string)
             self.cursor = self.conn.cursor()
             print("Connection successful!")
-            if create_table_flag:
-                self.create_copernicus_table()
         except Exception as e:
             print("Unable to connect to database - {}".format(e))
     
     # This ensures there will always be a table in which the data can be stored
-    def create_copernicus_table(self):
-        self.table_name = "copernicus_data_{}".format(self.csv_file_name.split('.csv')[-2].split('/')[-1])
+    def create_copernicus_table(self, table_name):
         query = """
         CREATE TABLE IF NOT EXISTS {}(
             timestamp TIMESTAMP NOT NULL,
@@ -39,7 +37,7 @@ class DatabaseController():
             latitude DECIMAL NOT NULL,
             pollutant DECIMAL NOT NULL
         );
-        """.format(self.table_name)
+        """.format(table_name)
         try:
             self.cursor.execute(query)
             self.conn.commit()
@@ -49,7 +47,7 @@ class DatabaseController():
 
     # this is for testing purposes, passwords will not be stored locally going forward
     def read_password(self):
-        with open('/usr/local/home/u180539/Final-Year-Project/o/pw.txt') as f:
+        with open('/usr/local/home/u180539/Copernicus_Extractor/o/pw.txt') as f:
             return f.readline().strip()
             
     def populate_table(self, csv_file):
@@ -71,8 +69,12 @@ class DatabaseController():
         query = config.sql_query.format(self.table_name, timestamp, longitude, latitude, pollutant)
         return query.replace('"', "'")
     
-    def table_exists(self):
-        return True
+    def table_exists(self, table_name=None):
+        table_name = table_name if table_name else self.path_leaf(self.csv_file_name).replace(".csv","")
+        check_table_query = config.table_exists_query_template.format(table_name)
+        self.cursor.execute(check_table_query)
+        table_exists = self.cursor.fetchall()
+        return table_exists[0][0]
 
     def build_map(self):
         lat_lon_query = "SELECT timestamp, pollutant from copernicus_data_example1 where latitude=51.45 and longitude=-7.95;"
@@ -89,4 +91,9 @@ class DatabaseController():
 
         bounding_box = (min_lon, max_lon, min_lat, max_lat)
         print(bounding_box)
+    
+    # extracts the file name in isolation from the rest of it's path
+    def path_leaf(self, path):
+        head, tail = ntpath.split(path)
+        return tail or ntpath.basename(head)
 

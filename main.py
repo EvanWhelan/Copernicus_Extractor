@@ -1,39 +1,54 @@
 import sys
 import os
 import subprocess
+import argparse
 from db import DatabaseController
 from wgrib import WgribController
 from pathlib import Path
 
-# required args: (-[d/F] , <filepath>)
 def launch():
-    if len(sys.argv) != 3:
-        print("Please enter args in the following order: -[d/F] <file_path>")
-        return
-    else:
-        print("Correct")
-    
-    quit()
-    use_single_file = sys.argv[1] == '-F'
-    grib_path = sys.argv[2]
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-p', '--path', required=False, help="path to grib file to be processed")
+    parser.add_argument('-tn', '--tablename', dest='table_name' , required=False, help='extract data from provided table name')
+    args = parser.parse_args()
+
+    grib_file_path = args.path
     grib_file_name = grib_file_path.split('.')[-2]
     csv_output_file = grib_file_path.replace("grib2", "csv")
     small_grib_file = grib_file_path.replace(grib_file_name, "{}_small".format(grib_file_name))
     db_controller = DatabaseController(csv_output_file)
     wgrib_controller = WgribController()
     
-    will_create_table = db_controller.table_exists()
-    if will_create_table:
-        if raw_input("A table for that grib file already exists.\nWould you like to override it with this file? [Y/n]").lower() == "y":
+    if args.path and args.table_name:
+        print("Please specify a path OR a table name (not both)")
+        quit()
+
+    table_exists = db_controller.table_exists(args.table_name) if args.table_name else db_controller.table_exists()
+        
+    if table_exists and args.path:
+        print("A table has already been created with that grib file")
+        print("Press 1 to continue with the existing table")
+        print("Press 2 to Enter Your Co-Ordinates")
+        
+        choice = input()
+        
+        quit()
+        
+        if input("A table for that grib file already exists.\nWould you like to override it with this file? [Y/n]").lower() == "y":
             extract_data_from_lat_lon()
             convert_to_csv()
             create_database()
         else:
             print("Extracting..")
-        quit()
     else:
         #TODO - Extract data from existing database based on latitude / longitude
         print("")
+
+def path_leaf(path):
+    head, tail = ntpath.split(path)
+    return tail or ntpath.basename(head)
 
 def extract_data_from_all_files(directory):
     for pth in Path.cwd().iterdir():
