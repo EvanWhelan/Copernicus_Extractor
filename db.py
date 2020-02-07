@@ -9,11 +9,11 @@ from time import sleep
 from decimal import Decimal
 
 class DatabaseController():
-    def __init__(self, grib_file_name):
+    def __init__(self, csv_filename):
         self.conn = None
         self.cursor = None
-        self.csv_file_name = grib_file_name
-        self.table_name = ""
+        self.csv_filename = csv_filename
+        self.table_name = self.generate_table_name(self.csv_filename)
         self.initialise_connection()
 
     def initialise_connection(self):
@@ -32,7 +32,7 @@ class DatabaseController():
         query = """
         CREATE TABLE IF NOT EXISTS {}(
             timestamp TIMESTAMP NOT NULL,
-            co-ords GEOMETRY NOT NULL,
+            coordinates GEOMETRY NOT NULL,
             pollutant DECIMAL NOT NULL
         );
         """.format(table_name)
@@ -48,15 +48,18 @@ class DatabaseController():
         with open('/usr/local/home/u180539/Copernicus_Extractor/o/pw.txt') as f:
             return f.readline().strip()
             
-    def populate_table(self, csv_file):
-        with open(csv_file) as f:
-            for line in f.readlines():
-                query = self.build_insert_query(line)
-                try:
-                    self.cursor.execute(query)
-                    self.conn.commit()
-                except Exception as e:
-                    print(e)
+    def populate_table(self, csv_file, table_exists):
+        if not table_exists:
+            self.create_copernicus_table(self.table_name)
+        else:
+            with open(csv_file) as f:
+                for line in f.readlines():
+                    query = self.build_insert_query(line)
+                    try:
+                        self.cursor.execute(query)
+                        self.conn.commit()
+                    except Exception as e:
+                        print(e)
 
     def build_insert_query(self, csv_line):            
         data = csv_line.split(',')
@@ -67,8 +70,8 @@ class DatabaseController():
         query = config.sql_query.format(self.table_name, timestamp, longitude, latitude, pollutant)
         return query.replace('"', "'")
     
-    def table_exists(self, table_name=None):
-        table_name = table_name if table_name else self.path_leaf(self.csv_file_name).replace(".csv","")
+    def table_exists(self, specified_table_name=None):
+        table_name = specified_table_name if specified_table_name else self.table_name
         check_table_query = config.table_exists_query_template.format(table_name)
         self.cursor.execute(check_table_query)
         table_exists = self.cursor.fetchall()
@@ -79,3 +82,5 @@ class DatabaseController():
         head, tail = ntpath.split(path)
         return tail or ntpath.basename(head)
 
+    def generate_table_name(self, csv_filename):
+        return self.path_leaf(csv_filename).replace(".csv", "")
