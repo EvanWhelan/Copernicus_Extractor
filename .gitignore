@@ -1,6 +1,8 @@
 #Local Password Folder
 o
 
+data
+
 # Editors
 .vscode/
 .idea/

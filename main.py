@@ -2,9 +2,11 @@ import sys
 import os
 import subprocess
 import argparse
+import config
 from db import DatabaseController
 from wgrib import WgribController
 from pathlib import Path
+
 
 def launch():
 
@@ -16,7 +18,7 @@ def launch():
 
     grib_file_path = args.path
     grib_file_name = grib_file_path.split('.')[-2]
-    csv_output_file = grib_file_path.replace("grib2", "csv")
+    csv_output_file = create_csv_filename(grib_file_path)
     small_grib_file = grib_file_path.replace(grib_file_name, "{}_small".format(grib_file_name))
     db_controller = DatabaseController(csv_output_file)
     wgrib_controller = WgribController()
@@ -27,25 +29,26 @@ def launch():
 
     table_exists = db_controller.table_exists(args.table_name) if args.table_name else db_controller.table_exists()
         
-    if table_exists and args.path:
+    if table_exists:
         print("A table has already been created with that grib file")
         print("Press 1 to continue with the existing table")
         print("Press 2 to Enter Your Co-Ordinates")
         
         choice = input()
         
-        quit()
-        
         if input("A table for that grib file already exists.\nWould you like to override it with this file? [Y/n]").lower() == "y":
-            extract_data_from_lat_lon()
-            convert_to_csv()
-            create_database()
+            extract_data_from_grib(wgrib_controller, grib_file_path, small_grib_file, csv_output_file)
+            create_database(db_controller, csv_output_file)
         else:
             print("Extracting..")
     else:
-        #TODO - Extract data from existing database based on latitude / longitude
-        print("")
+        extract_data_from_grib(wgrib_controller, grib_file_path, small_grib_file, csv_output_file)        
 
+def extract_data_from_grib(wgrib_controller, grib_file, small_grib_file, csv_file):
+    box = config.ireland_bounding_box
+    wgrib_controller.extract_bounding_box(grib_file, small_grib_file, box[0], box[1], box[2], box[3])
+    wgrib_controller.convert_grib_to_csv(grib_file, csv_file)
+    
 def path_leaf(path):
     head, tail = ntpath.split(path)
     return tail or ntpath.basename(head)
@@ -70,9 +73,11 @@ def convert_to_csv():
     process.wait()
     print("Finished converting data to csv. Status code {}".format(process.returncode))
 
-def create_database():
-    global db_controller    
-    db_controller.populate_table(csv_output_file)
+def create_database(db_controller, csv_file):
+    db_controller.populate_table(csv_file)
 
+def create_csv_filename(grib_file):
+    return grib_file.replace("+","_").replace("-","_").replace(",","_").replace(".grib2",".csv").replace("__","_")
+    
 if __name__ == "__main__":
     launch()
