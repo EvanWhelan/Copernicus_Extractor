@@ -17,6 +17,16 @@ def launch():
     parser.add_argument('-c', '--country', required=False, help='country around which to form a bounding box')
     args = parser.parse_args()
 
+    
+    bounding_box = fetch_bounding_box(args.country) if args.country else None
+
+    if bounding_box is None or bounding_box == '[]':
+        print("No bounding box could be found for the inputted country")
+        quit()
+
+
+    #TODO - Add checks to prevent crashes if only a country is inputted
+
     grib_file_path = args.path
     grib_file_name = grib_file_path.split('.')[-2]
     csv_output_file = create_csv_filename(grib_file_path)
@@ -63,8 +73,12 @@ def create_csv_filename(grib_file):
     return grib_file.replace("+","_").replace("-","_").replace(",","_").replace(".grib2",".csv").replace("__","_")
 
 def fetch_bounding_box(country):
-    req = requests.get("http://nomitam.openstreetmap.org/search?q=%s&format=json".format(country))
-    return json.loads(req.text)[0]["boundingbox"]
+    print(country)
+    req = requests.get("http://nominatim.openstreetmap.org/search?q=%s&format=json".format(country))
+    if req.text == '[]':
+        return req.text
+    else:
+        return json.loads(req.text)[0]["boundingbox"]
     
 if __name__ == "__main__":
     launch()
