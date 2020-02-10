@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import ntpath
 import matplotlib.pyplot as plt
+import sys
+from pathlib import Path
 from operator import itemgetter
 from time import sleep
 from decimal import Decimal
@@ -44,6 +46,8 @@ class DatabaseController():
             print("Table creation failed {}".format(e))
             
     def populate_table(self, csv_file, table_exists):
+        csv_file = csv_file.replace("~", f"{Path.home()}")
+
         if not table_exists:
             self.create_copernicus_table(self.table_name)
         
@@ -53,7 +57,7 @@ class DatabaseController():
             count = 1
             for line in f:
                 percentage_complete = round((count / num_lines) * 100, 3)
-                sys.stdout.write("Building Table - Progress: %d%%   \r" % (percentage_complete) )
+                sys.stdout.write(f"Building Table - Progress: {percentage_complete}%  \r")
                 sys.stdout.flush()
                 query = self.build_insert_query(line)
                 try:
@@ -64,7 +68,29 @@ class DatabaseController():
                     print(e)
         
         print("Finished Building Table")
-    
+
+    def get_closest_point_data(self, lon, lat):
+        query = config.closest_point_query_template.format(self.table_name, lon, lat)
+        try:
+            self.cursor.execute(query)
+            point = self.cursor.fetchall()
+            lon = point[0][0]
+            lat = point[0][1]
+            self.extract_data_for_point(lon, lat)
+        except Exception as e:
+            print(e)
+        
+    def extract_data_for_point(self, lon, lat):
+        query = config.all_data_for_point_query_template.format(self.table_name, lon, lat)
+        try:
+            self.cursor.execute(query)
+            data = self.cursor.fetchall()
+            for line in data:
+                print(line)
+                sleep(0.2)
+        except Exception as e:
+            print(e)
+
     def drop_table(self):
         drop_query = f"DROP TABLE IF EXISTS {self.table_name};"
         try:

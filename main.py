@@ -17,8 +17,15 @@ def launch():
     parser.add_argument('-p', '--path', required=False, help="path to grib file to be processed")
     parser.add_argument('-tn', '--tablename', required=False, help='extract data from provided table name')
     parser.add_argument('-c', '--country', required=False, help='country around which to form a bounding box')
+    parser.add_argument('--lon', required=False, help='longitude of user\'s co-ordinates')    
+    parser.add_argument('--lat', required=False, help='latitude of user\'s co-ordinates')
     args = parser.parse_args()
     
+
+    if args.lat and not args.lon or args.lon and not args.lat:
+        print("Please enter both lon and lat values")
+        quit()
+
     bounding_box = fetch_bounding_box(args.country) if args.country else None
     tablename = args.tablename if args.tablename else None
 
@@ -56,11 +63,16 @@ def launch():
         print("Press 1 to add grib data to this database")
         print("Press 2 to delete this table and populate it with the given file")
         
+        if args.lat and args.lon:
+            print("Press 3 to query this table with inputted lat/lon")
+            
         
         choice = input()
         
         if choice == '2':
             db_controller.drop_table()
+        elif choice == '3':
+            db_controller.get_closest_point_data(args.lon, args.lat)
                 
     extract_data_from_grib(wgrib_controller, grib_file_path, small_grib_file, csv_filename, bounding_box) 
     create_database(db_controller, csv_filename, table_exists)       
@@ -82,7 +94,6 @@ def create_csv_filename(grib_file):
     return grib_file.replace("+","_").replace("-","_").replace(",","_").replace(".grib2",".csv").replace("__","_")
 
 def fetch_bounding_box(country):
-    print("Getting bounding box...")
     bbox_url = "http://nominatim.openstreetmap.org/search?q=%s&format=json" % country.replace(" ", "+")
     req = requests.get(bbox_url)
     return  [float(co_ordinate) for co_ordinate in json.loads(req.text)[0]["boundingbox"]] if has_bounding_box(req.text) else 'not_found'
