@@ -1,7 +1,22 @@
 import db
 import os
-import sys
-from time import strftime
+import sys  
+import config
+import datetime
+import csv
+
+import matplotlib
+gui_env = ['TKAgg','GTKAgg','Qt4Agg','WXAgg']
+for gui in gui_env:
+    try:
+        matplotlib.use(gui,warn=False, force=True)
+        break
+    except:
+        continue
+
+from matplotlib import pyplot as plt
+from matplotlib import dates as md
+
 
 class AnalysisController():
     def __init__(self, db_controller):
@@ -9,52 +24,71 @@ class AnalysisController():
         self.tables = {}
         self.get_all_tables()
         self.table_name = None
+        self.data = None
 
     def start(self):
 
-        print("Press 1 to list all tables in database")
-        print("Press 2 to manually enter a table name")
+        while True:
+            self.print_database_options()
+            choice = input().lower()
+            if choice == 'q':
+                quit()
+            elif choice == 'reset':
+                continue
+            elif choice == '1':
+                self.print_table_options()
+                self.table_name = self.tables[int(input("\nSelect which table you want to query: "))]
+            elif choice == '2':
+                self.table_name = input("\nTable Name: ")
+                while not self.db_controller.table_exists(tablename):
+                    self.table_name = input("\nTable doesn't exist. Please enter another table name :")
+            
+            self.db_controller.set_table_name(self.table_name)
 
-        choice = input()
+            self.print_location_options()
 
-        if choice == '1':
-            print("Select which table you want to query: ") 
-            self.print_table_options()
-            self.table_name = self.tables[int(input())]
-        elif choice == '2':
-            self.table_name = input("Table Name: ")
-            while not self.db_controller.table_exists(tablename):
-                self.table_name = input("Table doesn't exist. Please enter another table name :")
+            choice = input("\nChoice: ").lower()
+            use_own_location = False
+            if choice == 'q':
+                quit()
+            elif choice == 'reset':
+                continue
+            elif choice == '1':
+                co_ordinates = input("\nInput lon/lat in form (lon, lat): ").replace("(","").replace(")","").replace(" ", "").split(",")
+
+                if co_ordinates == 'q':
+                    quit()
+                elif co_ordinates == 'reset':
+                    continue
+                use_own_location = True
+
+                lon = co_ordinates[0]
+                lat = co_ordinates[1]
                 
-        self.db_controller.set_table_name(self.table_name)
+                closest_point = self.db_controller.get_closest_point_data(lon, lat)
 
-        self.print_location_options()
+                lon = closest_point[0]
+                lat = closest_point[1]
 
-        location_choice = input("Choice: ")
+                self.data = self.db_controller.extract_data_for_point(lon, lat)
+            elif choice == '2':
+                self.data = self.db_controller.extract_all_data()
+        
+            self.print_analysis_options(use_own_location)
 
-        if location_choice == '1':
-            co_ordinates = input("Input lon/lat in form (lon, lat): ").replace("(","").replace(")","").replace(" ", "").split(",")
-            
-            lon = co_ordinates[0]
-            lat = co_ordinates[1]
-            
-            closest_point = self.db_controller.get_closest_point_data(lon, lat)
+            analysis_option = input("\nChoice: ")
 
-            lon = closest_point[0]
-            lat = closest_point[1]
-
-            data = self.db_controller.extract_data_for_point(lon, lat)
-        elif location_choice == '2':
-            data = self.db_controller.extract_all_data()
-    
-        use_own_location = location_choice == '1'
-        self.print_analysis_options(use_own_location)
-
-        analysis_option = input("Choice: ")
-
-        if analysis_option == '1':
-            csv_path = input("Please Enter An Absolute File Path: ")
-            self.write_data_to_csv(data, csv_path)
+            if choice == 'q':
+                quit()
+            elif choice == 'reset':
+                continue
+            if analysis_option == '1':
+                csv_path = input("\nPlease Enter An Absolute File Path: ")
+                self.write_data_to_csv(csv_path)
+            elif analysis_option == '2':
+                self.calculate_mean()
+            elif analysis_option == '3' and use_own_location:
+                self.extract_time_series()
         
     def get_all_tables(self):
         tables = self.db_controller.get_all_tables()
@@ -62,7 +96,7 @@ class AnalysisController():
             self.tables[i+1] = table[0]
         
     def print_analysis_options(self, use_own_location):
-        print("Press 1 to extract data to csv")
+        print("\nPress 1 to extract data to csv")
         print("Press 2 to calculate the mean value for the pollutant")
         if use_own_location:
             print("Press 3 to extract a time series for your given point")
@@ -70,38 +104,68 @@ class AnalysisController():
     def print_location_options(self):
         option1 = "Press 1 to input your location (lon, lat)"
         option2 = "Press 2 to query all data in the table"
-        print(f"{option1}\n{option2}")
+        print(f"\n{option1}\n{option2}")
 
     def print_table_options(self):
         for key in self.tables:
-            print(f"{key}) {self.tables[key]}")
+            print(f"\n{key}) {self.tables[key]}")
 
-    def write_data_to_csv(self, data, csv_path):
-        line_count = len(data)
+    def print_database_options(self):
+        print("\nPress 1 to list all tables in database")
+        print("Press 2 to manually enter a table name")
+        print("Type 'reset' at any time to change table")
+        print("Type 'q' at any time to quit")
+
+    def write_data_to_csv(self, csv_path):
+        if self.data is None:
+            print("No data to extract")
+            return
+
+        line_count = len(self.data)
         count = 1
 
         if os.path.exists(csv_path):
-            overwrite = input("A file already exists at that path. Overwrite? [Y/n]")
+            choice = input("\nA csv file already exists at that location. Do you want to overwrite it with this data? [Y/n]")
+            overwrite = choice.lower() == "y"
             if overwrite:
-                open(csv_path, 'w').close() # this erases all data from the file without deleting it
+                open(csv_path, 'w').close() # this erases all data from the file without having to delete it
+            else:
+                csv_path = input("\nPlease enter another path: ")
         
-        with open(csv_path, 'w') as f:
-            f.write(config.csv_header)
-            for line in data:
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(config.csv_header_row)
+            for line in self.data:
                 percentage_complete = round((count / line_count) * 100, 3)
                 sys.stdout.write(f"Writing to CSV - Progress: {percentage_complete}%  \r")
                 sys.stdout.flush()
-                timestamp = line[0][0]
-                point = line[1][0].replace("Point(", "").replace(")", "")
-                pollutant = line[2][0]
-                csv_line = f"{timestamp},{point},{pollutant}\n"
+                timestamp = line[0]
+                point = line[1].replace("POINT", "").replace(" ", ",")
+                pollutant = line[2]
+                csv_row = [timestamp, point, pollutant]
+                writer.writerow(csv_row)
                 count += 1
-                f.write(csv_line)
+        
+        print("\nFinished writing to csv")
     
-    def extract_time_series(self, data):
-        #TODO - Extract Time Series
-        pass
+    def extract_time_series(self):
+        timestamps = []
+        pollutants = []
 
-    def calculate_mean(self, data):
-        #TODO - Calculate mean value of pollutant across entire data
-        pass
+        for line in self.data:
+            timestamps.append(line[0])
+            pollutants.append(line[2])
+
+        timestamps = md.date2num(timestamps)
+
+        plt.xticks(rotation=25)
+        plt.plot(timestamps, pollutants)
+        plt.show()
+        plt.savefig("test.png") 
+
+    def calculate_mean(self):
+        pollutants = []
+        for line in self.data:
+            pollutants.append(line[2])
+
+        return sum(pollutants) / len(pollutants)

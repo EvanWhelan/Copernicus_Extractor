@@ -36,6 +36,7 @@ class DatabaseController():
             print("Connection successful!")
         except Exception as e:
             print("Unable to connect to database - {}".format(e))
+            quit()
     
     def create_copernicus_table(self, table_name):
         query = """
