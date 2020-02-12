@@ -6,21 +6,37 @@ import config
 import requests
 import json
 import urllib.parse
+import analysis_controller
 from getpass import getpass
 from db import DatabaseController
 from wgrib import WgribController
 from pathlib import Path
+from analysis_controller import AnalysisController
 
 def launch():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--mode', required=True)
     parser.add_argument('-p', '--path', required=False, help="path to grib file to be processed")
     parser.add_argument('-tn', '--tablename', required=False, help='extract data from provided table name')
     parser.add_argument('-c', '--country', required=False, help='country around which to form a bounding box')
     parser.add_argument('--lon', required=False, help='longitude of user\'s co-ordinates')    
     parser.add_argument('--lat', required=False, help='latitude of user\'s co-ordinates')
     args = parser.parse_args()
-    
+
+    dbname = config.db_name
+    username = config.username
+    password = getpass(f"PostgreSQL Password for {username}: ")
+
+    db_controller = DatabaseController(username, password, dbname)
+    wgrib_controller = WgribController()
+
+    mode = args.mode.lower() # mode 'a' for analysis, mode 'e' for extraction
+
+    if args.mode == 'a':
+        analysis_controller = AnalysisController(db_controller)
+        analysis_controller.start()
+        quit()
 
     if args.lat and not args.lon or args.lon and not args.lat:
         print("Please enter both lon and lat values")
@@ -42,19 +58,14 @@ def launch():
     grib_file_path = args.path if args.path else None
     
     grib_file_name = grib_file_path.split('.')[-2]
-    csv_filename = create_csv_filename(grib_file_path)
     small_grib_file = grib_file_path.replace(grib_file_name, "{}_small".format(grib_file_name))
+    
+    csv_filename = create_csv_filename(grib_file_path)
+    db_controller.set_csv_filename(csv_filename)
     
     if bounding_box:
         csv_filename = csv_filename.replace(".csv", f"_{bounding_box[0]}_{bounding_box[1]}_{bounding_box[2]}_{bounding_box[3]}.csv")
         small_grib_file = small_grib_file.replace(".grib2", f"_{bounding_box[0]}_{bounding_box[1]}_{bounding_box[2]}_{bounding_box[3]}.grib2")
-    
-    dbname = config.db_name
-    username = config.username
-    password = getpass(f"PostgreSQL Password for {username}: ")
-
-    db_controller = DatabaseController(csv_filename, username, password, dbname, tablename)
-    wgrib_controller = WgribController()
     
     table_exists = db_controller.table_exists(args.tablename)
         
@@ -65,14 +76,14 @@ def launch():
         
         if args.lat and args.lon:
             print("Press 3 to query this table with inputted lat/lon")
-            
         
         choice = input()
         
         if choice == '2':
             db_controller.drop_table()
         elif choice == '3':
-            db_controller.get_closest_point_data(args.lon, args.lat)
+            closest_point = db_controller.get_closest_point_data(args.lon, args.lat)
+            db_controller.extract_data_for_point(closest_point[0], closest_point[1])
                 
     extract_data_from_grib(wgrib_controller, grib_file_path, small_grib_file, csv_filename, bounding_box) 
     create_database(db_controller, csv_filename, table_exists)       
@@ -105,6 +116,6 @@ def has_bounding_box(query_result):
     else:
         print("Bounding Box successfully found")
         return True
-    
+
 if __name__ == "__main__":
     launch()
