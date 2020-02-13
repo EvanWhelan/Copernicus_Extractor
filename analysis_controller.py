@@ -4,8 +4,8 @@ import sys
 import config
 import datetime
 import csv
-
 import matplotlib
+# this process finds appropriate back ends for matplotlib
 gui_env = ['TKAgg','GTKAgg','Qt4Agg','WXAgg']
 for gui in gui_env:
     try:
@@ -17,7 +17,6 @@ for gui in gui_env:
 from matplotlib import pyplot as plt
 from matplotlib import dates as md
 
-
 class AnalysisController():
     def __init__(self, db_controller):
         self.db_controller = db_controller
@@ -27,7 +26,6 @@ class AnalysisController():
         self.data = None
 
     def start(self):
-
         while True:
             self.print_database_options()
             choice = input().lower()
@@ -86,7 +84,8 @@ class AnalysisController():
                 csv_path = input("\nPlease Enter An Absolute File Path: ")
                 self.write_data_to_csv(csv_path)
             elif analysis_option == '2':
-                self.calculate_mean()
+                mean = self.calculate_mean()
+                print(f"Mean value for pollutant = {mean}")
             elif analysis_option == '3' and use_own_location:
                 self.extract_time_series()
         
@@ -154,18 +153,18 @@ class AnalysisController():
 
         for line in self.data:
             timestamps.append(line[0])
-            pollutants.append(line[2])
-
-        timestamps = md.date2num(timestamps)
+            pollutants.append(float(line[2]))
 
         plt.xticks(rotation=25)
         plt.plot(timestamps, pollutants)
-        plt.show()
-        plt.savefig("test.png") 
+        plt.title("Timeseries of Selected Pollutant")
+        plt.xlabel("Timestamp")
+        plt.ylabel("Pollutant Value")
+        plt.show()        
 
     def calculate_mean(self):
         pollutants = []
         for line in self.data:
             pollutants.append(line[2])
 
-        return sum(pollutants) / len(pollutants)
+        return 0 if len(pollutants) == 0 else sum(pollutants) / len(pollutants)

@@ -7,6 +7,7 @@ import requests
 import json
 import urllib.parse
 import analysis_controller
+import ntpath
 from getpass import getpass
 from db import DatabaseController
 from wgrib import WgribController
@@ -39,13 +40,16 @@ def launch():
         bounding_box = fetch_bounding_box(args.country) if args.country else None
         tablename = args.tablename if args.tablename else None
 
+        if tablename:
+            db_controller.set_table_name(tablename)
+
         if bounding_box is None and args.country:
             print("No bounding box could be found for that country. Would you like to extract the entire file to the database? [Y/n]")
             if input().lower() != "y":
                 quit()
             
         if args.path and not args.country or bounding_box is None:
-            print("Warning: You have not inputted a country. This may result in csv files and databases that are multiple GB in size\n Are you sure you want to continue? [Y/n]")
+            print("Warning: You have not inputted a country. This may result     in csv files and databases that are multiple GB in size\n Are you sure you want to continue? [Y/n]")
             if input().lower() != "y":
                 quit()
 
@@ -96,9 +100,20 @@ def create_csv_filename(grib_file):
     return grib_file.replace("+","_").replace("-","_").replace(",","_").replace(".grib2",".csv").replace("__","_")
 
 def fetch_bounding_box(country):
-    bbox_url = "http://nominatim.openstreetmap.org/search?q=%s&format=json" % country.replace(" ", "+")
-    req = requests.get(bbox_url)
-    return  [float(co_ordinate) for co_ordinate in json.loads(req.text)[0]["boundingbox"]] if has_bounding_box(req.text) else 'not_found'
+    bbox_url = "http://nominatim.openstreetmap.org/search?q=%s&format=json&email=whelanevan6@gmail.com" % country.replace(" ", "+")
+    headers = {
+        "User-Agent": "Copernicus_Satellite_Extractor"
+    }
+    req = requests.get(bbox_url, headers=headers)
+
+    if req.status_code != 200:
+        print(f"Request Error: {req.status_code}")
+        return 'not found'
+    if has_bounding_box(req.text):
+        res = json.loads(req.text)[0]["boundingbox"]
+        return [float(co_ordinate) for co_ordinate in res]
+    else:
+        return 'not found'
 
 # intermediate check to ensure the api can find a bounding box for inputted country
 def has_bounding_box(query_result):
