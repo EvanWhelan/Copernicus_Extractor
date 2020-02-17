@@ -56,7 +56,7 @@ def launch():
         grib_file_path = args.path if args.path else None
         
         grib_file_name = grib_file_path.split('.')[-2]
-        small_grib_file = grib_file_path.replace(grib_file_name, "{}_small".format(grib_file_name))
+        small_grib_file = grib_file_path.replace(grib_file_name, "{}_{}".format(grib_file_name, args.country))
         
         csv_filename = create_csv_filename(grib_file_path)
         db_controller.set_csv_filename(csv_filename)
