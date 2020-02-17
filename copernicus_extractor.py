@@ -13,35 +13,43 @@ from db import DatabaseController
 from wgrib import WgribController
 from pathlib import Path
 from analysis_controller import AnalysisController
+import errno
 
 def launch():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--mode', required=True)
+    parser.add_argument('-m', '--mode', required=True)
     parser.add_argument('-p', '--path', required=False, help="path to grib file to be processed")
     parser.add_argument('-tn', '--tablename', required=False, help='extract data from provided table name')
     parser.add_argument('-c', '--country', required=False, help='country around which to form a bounding box')
     args = parser.parse_args()
 
-    dbname = config.db_name
-    username = config.username
-    password = getpass(f"PostgreSQL Password for {username}: ")
-
-    db_controller = DatabaseController(username, password, dbname)
+    db_controller = None
     wgrib_controller = WgribController()
 
     mode = args.mode.lower() # mode 'a' for analysis, mode 'e' for extraction
 
     if args.mode == 'a':
+        db_controller = init_database()
         analysis_controller = AnalysisController(db_controller)
         analysis_controller.start()
         quit()
     else:
-        bounding_box = fetch_bounding_box(args.country) if args.country else None
+        if not args.path:
+            print("Usage Error: No path provided. Please provide a path to a grib2 file using the --path argument")
+            return
+
+        if args.path and not os.path.exists(args.path):
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), args.path)
+            
+        db_controller = init_database()
+
         tablename = args.tablename if args.tablename else None
 
         if tablename:
             db_controller.set_table_name(tablename)
+
+        bounding_box = fetch_bounding_box(args.country) if args.country else None
 
         if bounding_box is None and args.country:
             print("No bounding box could be found for that country. Would you like to extract the entire file to the database? [Y/n]")
@@ -82,6 +90,15 @@ def launch():
         
         extract_data_from_grib(wgrib_controller, grib_file_path, small_grib_file, csv_filename, bounding_box) 
         create_database(db_controller, csv_filename, table_exists)       
+
+def init_database():
+    dbname = config.db_name
+    username = config.username
+    password = getpass(f"PostgreSQL Password for {username}: ")
+
+    db_controller = DatabaseController(username, password, dbname)
+    return db_controller
+
 
 def extract_data_from_grib(wgrib_controller, grib_file, small_grib_file, csv_filename, bounding_box):
     if bounding_box:

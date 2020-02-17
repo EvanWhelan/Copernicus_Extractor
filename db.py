@@ -1,7 +1,5 @@
 import psycopg2 as psy
 import config
-import numpy as np
-import pandas as pd
 import ntpath
 import matplotlib.pyplot as plt
 import sys

@@ -22,7 +22,7 @@ class AnalysisController():
         self.db_controller = db_controller
         self.tables = {}
         self.get_all_tables()
-        self.table_name = None
+        self.tablename = None
         self.data = None
 
     def start(self):
@@ -35,13 +35,13 @@ class AnalysisController():
                 continue
             elif choice == '1':
                 self.print_table_options()
-                self.table_name = self.tables[int(input("\nSelect which table you want to query: "))]
+                self.tablename = self.tables[int(input("\nSelect which table you want to query: "))]
             elif choice == '2':
-                self.table_name = input("\nTable Name: ")
-                while not self.db_controller.table_exists(tablename):
-                    self.table_name = input("\nTable doesn't exist. Please enter another table name :")
+                self.tablename = input("\nTable Name: ")
+                while not self.db_controller.table_exists(self.tablename):
+                    self.tablename = input("\nTable doesn't exist. Please enter another table name :")
             
-            self.db_controller.set_table_name(self.table_name)
+            self.db_controller.set_table_name(self.tablename)
 
             self.print_location_options()
 
