@@ -31,7 +31,6 @@ def launch():
     mode = args.mode.lower() # mode 'a' for analysis, mode 'e' for extraction
     
     if mode == 'e':
-
         if not args.tablename:
             print("Usage Error: Argument --tablename required when in extract mode")
             return
@@ -43,6 +42,26 @@ def launch():
         if args.path and args.api:
             print("Usage Error: Please use ONLY the --api flag OR the --path argument, not both")
             return
+        
+        tablename = args.tablename
+        db_controller.set_table_name(tablename)
+        table_exists = db_controller.table_exists(tablename)
+        
+        while table_exists:
+            print("A table has already been created with that name")
+            print("Press 1 to add this grib data to the existing database")
+            print("Press 2 to delete the table and repopulate it with the given file")
+            print("Press 3 to enter a new table name")
+                        
+            choice = input()
+            if choice == '1':
+                break
+            elif choice == '2':
+                db_controller.drop_table()
+                break
+            elif choice == '3':
+                tablename = input("New Table Name : ")
+                table_exists = db_controller.table_exists(tablename)
         
         country = None
         bounding_box = None
@@ -75,32 +94,14 @@ def launch():
             print("Warning: You have not inputted a country. This may result in csv files and databases that are multiple GB in size\n Are you sure you want to continue? [Y/n]")
             if input().lower() != "y":
                 quit()
-        
-        tablename = args.tablename
-        db_controller.set_table_name(tablename)
 
         if bounding_box is None and args.country:
             if input("No bounding box could be found for that country. Would you like to extract the entire file to the database? [Y/n]: ").lower() != "y":
                 quit()
-            
-        table_exists = db_controller.table_exists(tablename)
-            
-        if table_exists:
-            print("A table has already been created with that name")
-            print("Press 1 to add this grib data to the existing database")
-            print("Press 2 to delete this table and populate it with the given file")
-                        
-            choice = input()
-            
-            if choice == '2':
-                db_controller.drop_table()
-            elif choice == '3':
-                closest_point = db_controller.get_closest_point_data(args.lon, args.lat)
-                db_controller.extract_data_for_point(closest_point[0], closest_point[1])
-        
+                    
         extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding_box, table_exists, country) 
 
-
+    # This automatically starts analysis mode after the table has been created
     analysis_controller = AnalysisController(db_controller)
     analysis_controller.start()
 
