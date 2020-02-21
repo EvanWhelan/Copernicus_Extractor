@@ -8,16 +8,17 @@ from operator import itemgetter
 from time import sleep
 from decimal import Decimal
 from datetime import datetime
+from getpass import getpass
 
 class DatabaseController():
-    def __init__(self, username, password, dbname, tablename=None, csv_filename=None):
+    def __init__(self):
         self.conn = None
         self.cursor = None
-        self.csv_filename = csv_filename
-        self.username = username
-        self.password = password
-        self.dbname = dbname
-        self.table_name = tablename
+        self.csv_filename = None
+        self.table_name = None
+        self.username = config.username
+        self.dbname = config.db_name
+        self.password = getpass(f"PostgreSQL Password for {self.username}: ")
         self.initialise_connection()
 
     def set_csv_filename(self, csv_filename):

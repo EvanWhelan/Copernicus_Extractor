@@ -21,7 +21,6 @@ class WgribController:
         print("Finished extracting data for given bounding box")
 
     def convert_grib_to_csv(self, grib_file, csv_filename):
-
         if not os.path.exists(grib_file):
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), grib_file)
         
