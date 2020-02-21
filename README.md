@@ -30,7 +30,7 @@ The user will be prompted for password via the command line when the app is run.
 #### Extract Mode
 
 Extract mode is used to extract data from grib file and store it in a PostgreSQL Database for further use.
-You can specify a country by which you want to filter the data
+You can specify a region by which you want to filter the data
 
 ##### Supplying grib2 file(s)
 
@@ -42,35 +42,35 @@ Example:
 
 This will extract data from the file found in the data folder in the user's home directory
 
-##### Specifying a country by which to filter the data
+##### Specifying a region by which to filter the data
 
-Use the `--country` flag, followed by the country's name.
+Use the `--region` flag, followed by the region's name.
 
 Example:
 
-`python3.7 copernicus_extractor.py --mode e --country Ireland`
+`python3.7 copernicus_extractor.py --mode e --region Ireland`
 
 This will extract all air quality data within a bounding box that surrounds Ireland.
 
 The bounding box is retrieved by using the [Nominatim OpenStreetMap API](https://wiki.openstreetmap.org/wiki/Nominatim)
 
-***NOTE : If a country is not specified, the entire dataset will be stored in the database, which may be upwards of 1GB in size depending on the file you use***
+***NOTE : If a region is not specified, the entire dataset will be stored in the database, which may be upwards of 1GB in size depending on the file you use***
 
 ##### Specifying a table name
 
 ***It is required that you pass the --tablename argument when using the program in extract mode
 
 You can specify the name of the table you want the data to be stored in with the `--tablename` argument
-`python3.7 copernicus_extractor.py --mode e --country Ireland --tablename irish_data` 
+`python3.7 copernicus_extractor.py --mode e --region Ireland --tablename irish_data` 
 will 
 
-***NOTE : If a table name is not specified,a table name will be formatted from the name of the file provided. If a country is provided, the country's name will be appended to the end of the table name***
+***NOTE : If a table name is not specified,a table name will be formatted from the name of the file provided. If a region is provided, the region's name will be appended to the end of the table name***
 
 #### Worked Example:
 
 ###### Command: 
 
-`python3.7 copernicus_extractor.py --mode e --country Ireland --tablename irish_data` 
+`python3.7 copernicus_extractor.py --mode e --region Ireland --tablename irish_data` 
 
 1. The software will extract all data from the grib file that is contained within the bounding box surrounding Ireland.
 
@@ -84,7 +84,7 @@ By including the --api flag, rather than the --path argument, you can request gr
 
 ###### Usage: 
 
-`python3.7 copernicus_extractor.py --mode e --api --country Ireland --tablename irish_data` 
+`python3.7 copernicus_extractor.py --mode e --api --region Ireland --tablename irish_data` 
 
 This will prompt an interactive console menu that will ask the user to choose their pollutant and a range of dates.
 

@@ -107,7 +107,6 @@ class DatabaseController():
         try:
             self.cursor.execute(drop_query)
             self.conn.commit()
-            self.table_exists = False
         except Exception as e:
                 print(e)
     

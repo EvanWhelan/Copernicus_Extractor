@@ -19,9 +19,12 @@ class CopernicusApi:
         self.make_grib_directory()
         self.grib_file_paths = []
 
-    def get_grib_data(self):
+    def get_grib_data(self, species=None):
         model = "ENSEMBLE"
 
+        if species:
+            self.species = species
+            
         for date in self.dates:
             reference_time = datetime.strftime(date, "%Y-%m-%dT%H:%M:%S%z")
             formatted_reference_time = f"{reference_time}Z"
