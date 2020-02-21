@@ -2,27 +2,19 @@ import db
 import os
 import sys  
 import config
-import datetime
 import csv
 import matplotlib
-# this process finds appropriate back ends for matplotlib
-gui_env = ['TKAgg','GTKAgg','Qt4Agg','WXAgg']
-for gui in gui_env:
-    try:
-        matplotlib.use(gui,warn=False, force=True)
-        break
-    except:
-        continue
-
+import math
 from matplotlib import pyplot as plt
 from matplotlib import dates as md
+from datetime import datetime
 
 class AnalysisController():
     def __init__(self, db_controller):
         self.db_controller = db_controller
         self.tables = {}
         self.get_all_tables()
-        self.table_name = None
+        self.tablename = None
         self.data = None
 
     def start(self):
@@ -35,59 +27,62 @@ class AnalysisController():
                 continue
             elif choice == '1':
                 self.print_table_options()
-                self.table_name = self.tables[int(input("\nSelect which table you want to query: "))]
+                self.tablename = self.tables[int(input("\nSelect which table you want to query: "))]
             elif choice == '2':
-                self.table_name = input("\nTable Name: ")
-                while not self.db_controller.table_exists(tablename):
-                    self.table_name = input("\nTable doesn't exist. Please enter another table name :")
+                self.tablename = input("\nTable Name: ")
+                while not self.db_controller.table_exists(self.tablename):
+                    self.tablename = input("\nTable doesn't exist. Please enter another table name :")
             
-            self.db_controller.set_table_name(self.table_name)
+            self.db_controller.set_table_name(self.tablename)
 
-            self.print_location_options()
+            while choice != 'reset':
+                self.print_location_options()
 
-            choice = input("\nChoice: ").lower()
-            use_own_location = False
-            if choice == 'q':
-                quit()
-            elif choice == 'reset':
-                continue
-            elif choice == '1':
-                co_ordinates = input("\nInput lon/lat in form (lon, lat): ").replace("(","").replace(")","").replace(" ", "").split(",")
-
-                if co_ordinates == 'q':
+                choice = input("\nChoice: ").lower()
+                use_own_location = False
+                if choice == 'q':
                     quit()
-                elif co_ordinates == 'reset':
+                elif choice == 'reset':
                     continue
-                use_own_location = True
+                elif choice == '1':
+                    co_ordinates = input("\nInput lon/lat in form (lon, lat): ").replace("(","").replace(")","").replace(" ", "").split(",")
 
-                lon = co_ordinates[0]
-                lat = co_ordinates[1]
-                
-                closest_point = self.db_controller.get_closest_point_data(lon, lat)
+                    if co_ordinates == 'q':
+                        quit()
+                    elif co_ordinates == 'reset':
+                        continue
+                    use_own_location = True
 
-                lon = closest_point[0]
-                lat = closest_point[1]
+                    lon = co_ordinates[0]
+                    lat = co_ordinates[1]
+                    
+                    orignal_point = (lon, lat)
+                    closest_point = self.db_controller.get_closest_point_data(lon, lat)
 
-                self.data = self.db_controller.extract_data_for_point(lon, lat)
-            elif choice == '2':
-                self.data = self.db_controller.extract_all_data()
-        
-            self.print_analysis_options(use_own_location)
+                    lon = closest_point[0]
+                    lat = closest_point[1]
+                    print(f"Closest point found: Lon={lon}, Lat={lat}")
+                    self.calculate_distance(orignal_point, closest_point)
+                    self.data = self.db_controller.extract_data_for_point(lon, lat)
+                elif choice == '2':
+                    self.data = self.db_controller.extract_all_data()
+            
+                self.print_analysis_options(use_own_location)
 
-            analysis_option = input("\nChoice: ")
+                analysis_option = input("\nChoice: ")
 
-            if choice == 'q':
-                quit()
-            elif choice == 'reset':
-                continue
-            if analysis_option == '1':
-                csv_path = input("\nPlease Enter An Absolute File Path: ")
-                self.write_data_to_csv(csv_path)
-            elif analysis_option == '2':
-                mean = self.calculate_mean()
-                print(f"Mean value for pollutant = {mean}")
-            elif analysis_option == '3' and use_own_location:
-                self.extract_time_series()
+                if choice == 'q':
+                    quit()
+                elif choice == 'reset':
+                    continue
+                if analysis_option == '1':
+                    csv_path = input("\nPlease Enter An Absolute File Path: ")
+                    self.write_data_to_csv(csv_path)
+                elif analysis_option == '2':
+                    mean = self.calculate_mean()
+                    print(f"Mean value for pollutant = {mean}")
+                elif analysis_option == '3' and use_own_location:
+                    self.extract_time_series()
         
     def get_all_tables(self):
         tables = self.db_controller.get_all_tables()
@@ -139,28 +134,34 @@ class AnalysisController():
                 sys.stdout.write(f"Writing to CSV - Progress: {percentage_complete}%  \r")
                 sys.stdout.flush()
                 timestamp = line[0]
-                point = line[1].replace("POINT", "").replace(" ", ",")
-                pollutant = line[2]
-                csv_row = [timestamp, point, pollutant]
+                lon = line[1]
+                lat = line[2]
+                pollutant = line[3]
+                csv_row = [timestamp, lon, lat, pollutant]
                 writer.writerow(csv_row)
                 count += 1
         
         print("\nFinished writing to csv")
     
     def extract_time_series(self):
-        timestamps = []
-        pollutants = []
+        times = []
+        polls = []
 
-        for line in self.data:
-            timestamps.append(line[0])
-            pollutants.append(float(line[2]))
-
-        plt.xticks(rotation=25)
-        plt.plot(timestamps, pollutants)
-        plt.title("Timeseries of Selected Pollutant")
+        for row in self.data:
+            time = datetime.strftime(row[0], "%Y-%m-%d %H:%M:%S")
+            poll = float(row[3])
+            times.append(time)
+            polls.append(poll)
+            print(f"{time} - {poll}")
+            
+        print(len(times), len(polls))
+        plt.plot(times, polls, '--bo')
+        plt.xticks(rotation=90)
+        plt.grid()  
+        plt.title("Time Series of Pollutant Value")
         plt.xlabel("Timestamp")
         plt.ylabel("Pollutant Value")
-        plt.show()        
+        plt.show()
 
     def calculate_mean(self):
         pollutants = []
@@ -168,3 +169,23 @@ class AnalysisController():
             pollutants.append(line[2])
 
         return 0 if len(pollutants) == 0 else sum(pollutants) / len(pollutants)
+
+    def calculate_distance(self, original_point, closest_point):
+        # Implementation of the Haversine formula to calculate distance between two points
+        R = 6373.0
+        
+        lon1 = math.radians(float(original_point[0]))
+        lat1 = math.radians(float(original_point[1]))
+        lon2 = math.radians(float(closest_point[0]))
+        lat2 = math.radians(float(closest_point[1]))
+
+        dlon = lon2 - lon1
+
+        dlat = lat2 - lat1
+
+        a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
+
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = R * c
+
+        print(f"The closest point found is {round(distance,3)} km from your inputted point")

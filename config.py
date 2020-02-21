@@ -6,8 +6,24 @@ username = 'evan'
 table_name_format = "copernicus_data_{}"
 table_exists_query_template = "SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name='{}');"  
 closest_point_query_template = "SELECT ST_X(coordinates), ST_Y(coordinates) FROM {} ORDER BY coordinates <-> st_setsrid(st_makepoint({}, {}), 4326) LIMIT 1;"
-all_data_for_point_query_template = "SELECT timestamp, St_AsText(coordinates), pollutant FROM {} WHERE ST_X(coordinates) = {} AND ST_Y(coordinates) = {};"
+all_data_for_point_query_template = "SELECT timestamp, ST_X(coordinates), ST_Y(coordinates), pollutant FROM {} WHERE ST_X(coordinates) = {} AND ST_Y(coordinates) = {};"
 all_tables_query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
-all_data_query = "SELECT timestamp, St_AsText(coordinates), pollutant FROM {};"
+all_data_query = "SELECT timestamp, ST_X(coordinates), ST_Y(coordinates), pollutant FROM {};"
 drop_table_query_format = "DROP TABLE IF EXISTS {};"
-csv_header_row = ["timestamp", "point", "pollutant"]
+csv_header_row = ["timestamp", "lon", "lat", "pollutant"]
+copernicus_species = {
+    1 : "CO", 
+    2 : "NH3",
+    3 : "NMVOC",
+    4 : "NO",
+    5 : "NO2",
+    6 : "O3",
+    7 : "PANs",
+    8 : "PM10", 
+    9 : "PM2.5",
+    10: "SO2"
+}
+token = "__5BxhCo_BB_gVwZJPH55UdnB-Zr_8eZIi9DOzS8Zrt6g__"
+copernics_url_format = "https://download.regional.atmosphere.copernicus.eu/services/CAMS50?token={}&grid=0.1&model=ENSEMBLE&package=ANALYSIS_{}_SURFACE&time=-24H-1H&referencetime={}&format=GRIB2"
+copernicus_dir_name = "copernicus_api_dir_{}"
+copernicus_api_file_format = "api_{}_{}_{}.grib2"
