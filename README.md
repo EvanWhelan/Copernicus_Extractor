@@ -32,9 +32,9 @@ The user will be prompted for password via the command line when the app is run.
 Extract mode is used to extract data from grib file and store it in a PostgreSQL Database for further use.
 You can specify a country by which you want to filter the data
 
-##### Supplying a grib2 file
+##### Supplying grib2 file(s)
 
-You must supply a path to the grib2 file by using the `--path` argument
+You must supply a path to either a  grib2 file or a directory containing grib2 files by using the `--path` argument
 
 Example:
 
@@ -58,6 +58,8 @@ The bounding box is retrieved by using the [Nominatim OpenStreetMap API](https:/
 
 ##### Specifying a table name
 
+***It is required that you pass the --tablename argument when using the program in extract mode
+
 You can specify the name of the table you want the data to be stored in with the `--tablename` argument
 `python3.7 copernicus_extractor.py --mode e --country Ireland --tablename irish_data` 
 will 
@@ -76,5 +78,20 @@ will
 
 3. The contents of this file will be stored in a PostgreSQL database, within a table called 'irish_data' (as specified with the --tablename argument)
 
-###### TODO: Documentation on analysis mode
+##### Using the Copernicus API to download grib files
+
+By including the --api flag, rather than the --path argument, you can request grib files (from up to 30 days ago) directly from the Copernicus API.
+
+###### Usage: 
+
+`python3.7 copernicus_extractor.py --mode e --api --country Ireland --tablename irish_data` 
+
+This will prompt an interactive console menu that will ask the user to choose their pollutant and a range of dates.
+
+The program will create a directory, found in the same directory containing this project. It will be formatted as copernicus_api_dir_<time_since_epoch>. This formatting is to simply ensure no duplicate directories are created.
+
+All grib files fetched from the API will be stored here and extraction will occur as outlined above
+
+#### TODO: Analysis Mode Documentation
+
 
