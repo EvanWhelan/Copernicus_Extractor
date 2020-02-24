@@ -20,10 +20,11 @@ def launch():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-m', '--mode', required=True)
+    parser.add_argument('--csv', required=False, help='used to provide a csv and find the closest point to each lat/lon found in the csv')
     parser.add_argument('--api', required=False, action='store_true', help="flag to toggle using the api to fetch grib files rather than downloading manually")
     parser.add_argument('-p', '--path', required=False, help="path to grib file to be processed")
     parser.add_argument('-tn', '--tablename', required=False, help='extract data from provided table name')
-    parser.add_argument('-c', '--country', required=False, help='country around which to form a bounding box')
+    parser.add_argument('-c', '--region', required=False, help='region around which to form a bounding box')
     args = parser.parse_args()
 
     db_controller = DatabaseController()
@@ -63,11 +64,11 @@ def launch():
                 tablename = input("New Table Name : ")
                 table_exists = db_controller.table_exists(tablename)
         
-        country = None
+        region = None
         bounding_box = None
-        if args.country:
-            country = args.country
-            bounding_box = fetch_bounding_box(country)
+        if args.region:
+            region = args.region
+            bounding_box = fetch_bounding_box(region)
 
         grib_files = []
         wgrib_controller = WgribController()
@@ -87,35 +88,46 @@ def launch():
                         grib_files.append(filename)
         elif args.api:
             api_controller = CopernicusApi()
-            api_grib_files = api_controller.get_grib_data()
-            grib_files.extend(api_grib_files)
+            
+            if args.csv:
+                # core_pulltants being defined as the five pollutants that are used to calculate the AQIH (Air Quality Index for Health)
+                # by the EPA
+                csv_path = args.csv
+                core_pulltants = config.core_pollutants
+                for pollutant in core_pulltants:
+                    api_grib_files = api_controller.get_grib_data(pollutant)
+                    grib_files.extend(api_grib_files)
+            else:
+                api_grib_files = api_controller.get_grib_data()
+                grib_files.extend(api_grib_files)
 
-        if not args.country or bounding_box is None:
-            print("Warning: You have not inputted a country. This may result in csv files and databases that are multiple GB in size\n Are you sure you want to continue? [Y/n]")
+        if not args.region or bounding_box is None:
+            print("Warning: You have not inputted a region. This may result in csv files and databases that are multiple GB in size\n Are you sure you want to continue? [Y/n]")
             if input().lower() != "y":
                 quit()
 
-        if bounding_box is None and args.country:
-            if input("No bounding box could be found for that country. Would you like to extract the entire file to the database? [Y/n]: ").lower() != "y":
+        if bounding_box is None and args.region:
+            if input("No bounding box could be found for that region. Would you like to extract the entire file to the database? [Y/n]: ").lower() != "y":
                 quit()
                     
-        extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding_box, table_exists, country) 
+        extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding_box, table_exists, region) 
 
-    # This automatically starts analysis mode after the table has been created
+    # This automatically starts analysis mode after the table has been created, if -I flag is set
     analysis_controller = AnalysisController(db_controller)
-    analysis_controller.start()
+    csv_path = args.csv if args.csv else None
+    analysis_controller.start(csv_path)
 
-def extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding_box, table_exists, country="all"):
+def extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding_box, table_exists, region="all"):
     for grib_file in grib_files:
         
         grib_file_name = grib_file.split('.')[-2]
-        small_grib_file = grib_file.replace(grib_file_name, "{}_{}".format(grib_file_name, country))
+        small_grib_file = grib_file.replace(grib_file_name, "{}_{}".format(grib_file_name, region))
         csv_filename = create_csv_filename(grib_file)
         db_controller.set_csv_filename(csv_filename)
         
         if bounding_box:
-            csv_filename = csv_filename.replace(".csv", f"_{country}.csv")
-            small_grib_file = small_grib_file.replace(".grib2", f"_{country}.grib2")
+            csv_filename = csv_filename.replace(".csv", f"_{region}.csv")
+            small_grib_file = small_grib_file.replace(".grib2", f"_{region}.grib2")
             wgrib_controller.extract_bounding_box(grib_file, small_grib_file, bounding_box[0], bounding_box[1], bounding_box[2], bounding_box[3])
         
         wgrib_controller.convert_grib_to_csv(small_grib_file, csv_filename)
@@ -132,8 +144,8 @@ def create_database(db_controller, csv_filename, table_exists):
 def create_csv_filename(grib_file):
     return grib_file.replace("+","_").replace("-","_").replace(",","_").replace(".grib2",".csv").replace("__","_")
 
-def fetch_bounding_box(country):
-    bbox_url = "http://nominatim.openstreetmap.org/search?q=%s&format=json&email=whelanevan6@gmail.com" % country.replace(" ", "+")
+def fetch_bounding_box(region):
+    bbox_url = "http://nominatim.openstreetmap.org/search?q=%s&format=json&email=whelanevan6@gmail.com" % region.replace(" ", "+")
     headers = {
         "User-Agent": "Copernicus_Satellite_Extractor"
     }
@@ -148,7 +160,7 @@ def fetch_bounding_box(country):
     else:
         return 'not found'
 
-# intermediate check to ensure the api can find a bounding box for inputted country
+# intermediate check to ensure the api can find a bounding box for inputted region
 def has_bounding_box(query_result):
     if query_result == '[]' or "boundingbox" not in json.loads(query_result)[0]:
         return False

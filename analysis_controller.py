@@ -17,7 +17,16 @@ class AnalysisController():
         self.tablename = None
         self.data = None
 
-    def start(self):
+    def start(self, csv_path=None):
+
+        if csv_path:
+            with open(csv_path) as f:
+                reader = csv.reader(f)
+                next(reader, None)
+                for row in reader:
+                    pass
+                    #TODO - Loop all points in csv and find closest point, extract to csv
+
         while True:
             self.print_database_options()
             choice = input().lower()
