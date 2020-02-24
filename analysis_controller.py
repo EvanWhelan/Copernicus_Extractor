@@ -161,7 +161,7 @@ class AnalysisController():
         plt.title("Time Series of Pollutant Value")
         plt.xlabel("Timestamp")
         plt.ylabel("Pollutant Value")
-        plt.show(block=False)
+        plt.show()
 
     def calculate_mean(self):
         pollutants = []

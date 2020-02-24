@@ -1,7 +1,8 @@
-#Local Password Folder
-o
-
 data
+
+copernicus_api_dir_*
+*.csv#
+*.csv
 
 # Editors
 .vscode/
