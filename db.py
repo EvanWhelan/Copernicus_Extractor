@@ -16,6 +16,7 @@ class DatabaseController():
         self.cursor = None
         self.csv_filename = None
         self.table_name = None
+        self.pollutant_name = None
         self.username = config.username
         self.dbname = config.db_name
         self.password = getpass(f"PostgreSQL Password for {self.username}: ")
@@ -27,6 +28,9 @@ class DatabaseController():
     def set_table_name(self, table_name):
         self.table_name = table_name
 
+    def set_pollutant_name(self, pollutant_name):
+        self.pollutant_name = pollutant_name
+
     def initialise_connection(self):
         try:
             connection_string = "dbname='{}' user='{}' password='{}'".format(self.dbname, self.username, self.password)
@@ -37,18 +41,12 @@ class DatabaseController():
             print("Unable to connect to database - {}".format(e))
             quit()
     
-    def create_copernicus_table(self, table_name):
-        query = """
-        CREATE TABLE IF NOT EXISTS {}(
-            timestamp TIMESTAMP NOT NULL,
-            coordinates GEOMETRY NOT NULL,
-            pollutant DECIMAL NOT NULL
-        );
-        """.format(table_name)
+    def create_copernicus_table(self):
+        query = config.create_table_query_template.format(self.table_name)
         try:
             self.cursor.execute(query)
             self.conn.commit()
-            print("Table Created: Name = {}".format(table_name))
+            print("Table Created: Name = {}".format(self.table_name))
         except Exception as e:
             print("Table creation failed {}".format(e))
             
@@ -56,7 +54,7 @@ class DatabaseController():
         csv_file = csv_file.replace("~", f"{Path.home()}")
 
         if not table_exists:
-            self.create_copernicus_table(self.table_name)
+            self.create_copernicus_table()
         
         print("Building Table")
         num_lines = self.file_len(csv_file)
@@ -86,8 +84,12 @@ class DatabaseController():
         except Exception as e:
             print(e)
         
-    def extract_data_for_point(self, lon, lat):
-        query = config.all_data_for_point_query_template.format(self.table_name, lon, lat)
+    def extract_data_for_point(self, lon, lat, pollutant=None):
+        query = None
+        if pollutant:
+            query = config.pollutant_for_point_query_template.format(self.table_name, lon, lat, pollutant)
+        else:
+            query = config.all_data_for_point_query_template.format(self.table_name, lon, lat)
         try:
             data = self.execute_select(query)
             return data
@@ -149,5 +151,5 @@ class DatabaseController():
         longitude = data[4]
         latitude = data[5]
         pollutant = float(data[6]) * config.scale_factor
-        query = config.sql_query.format(self.table_name, timestamp, longitude, latitude, pollutant)
+        query = config.sql_insert_query_template.format(self.table_name, timestamp, longitude, latitude, pollutant, f"'{self.pollutant_name}'")
         return query.replace('"', "'")

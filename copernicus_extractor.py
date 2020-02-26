@@ -20,7 +20,7 @@ def launch():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-m', '--mode', required=True)
-    parser.add_argument('--csv', required=False, help='used to provide a csv and find the closest point to each lat/lon found in the csv')
+    parser.add_argument('--json', required=False, help='used to provide a csv and find the closest point to each lat/lon found in the csv')
     parser.add_argument('--api', required=False, action='store_true', help="flag to toggle using the api to fetch grib files rather than downloading manually")
     parser.add_argument('-p', '--path', required=False, help="path to grib file to be processed")
     parser.add_argument('-tn', '--tablename', required=False, help='extract data from provided table name')
@@ -28,6 +28,7 @@ def launch():
     args = parser.parse_args()
 
     db_controller = DatabaseController()
+    analysis_controller = AnalysisController(db_controller)
 
     mode = args.mode.lower() # mode 'a' for analysis, mode 'e' for extraction
     
@@ -76,7 +77,10 @@ def launch():
         if args.path:
             if os.path.exists(args.path):
                 raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), args.path)
-            
+
+            pollutant_name = path_leaf(args.path).split("+")[-2]
+            db_controller.set_pollutant_name(pollutant_name)
+
             if os.path.isfile(args.path):
                 grib_file_path = args.path
                 grib_files.append(grib_file_path)
@@ -87,20 +91,20 @@ def launch():
                     if filename.endswith(".grib2"):
                         grib_files.append(filename)
         elif args.api:
-            api_controller = CopernicusApi()
-            
-            if args.csv:
-                # core_pulltants being defined as the five pollutants that are used to calculate the AQIH (Air Quality Index for Health)
-                # by the EPA
-                csv_path = args.csv
-                core_pulltants = config.core_pollutants
-                for pollutant in core_pulltants:
-                    api_grib_files = api_controller.get_grib_data(pollutant)
-                    grib_files.extend(api_grib_files)
-            else:
-                api_grib_files = api_controller.get_grib_data()
-                grib_files.extend(api_grib_files)
+            use_json = True if args.json else False
+            api_controller = CopernicusApi(use_json)
+       
+            # 1. Accept time range and region
+            # 2. Fetch all 5 pollutants and store in same database
+            # 3. For each point in JSON file:
+            #    3.1 Get closest point
+            #    3.2 Extract csv file for each point 
 
+            # core_pulltants being defined as the five pollutants that are used to calculate the AQIH (Air Quality Index for Health)
+            # by the EPA
+            api_grib_files = api_controller.get_grib_data()
+            grib_files.extend(api_grib_files)
+        
         if not args.region or bounding_box is None:
             print("Warning: You have not inputted a region. This may result in csv files and databases that are multiple GB in size\n Are you sure you want to continue? [Y/n]")
             if input().lower() != "y":
@@ -110,12 +114,11 @@ def launch():
             if input("No bounding box could be found for that region. Would you like to extract the entire file to the database? [Y/n]: ").lower() != "y":
                 quit()
                     
-        extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding_box, table_exists, region) 
+        extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding_box, table_exists, region)
 
-    # This automatically starts analysis mode after the table has been created, if -I flag is set
-    analysis_controller = AnalysisController(db_controller)
-    csv_path = args.csv if args.csv else None
-    analysis_controller.start(csv_path)
+    # This automatically starts analysis mode after the table has been created  
+    json_path = args.json if args.json else None 
+    analysis_controller.start(json_path, tablename)
 
 def extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding_box, table_exists, region="all"):
     for grib_file in grib_files:
@@ -123,7 +126,15 @@ def extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding
         grib_file_name = grib_file.split('.')[-2]
         small_grib_file = grib_file.replace(grib_file_name, "{}_{}".format(grib_file_name, region))
         csv_filename = create_csv_filename(grib_file)
+        split_pollutant_name = path_leaf(csv_filename).split("_")
+        pollutant_name = None
+        if path_leaf(csv_filename).startswith("api"):
+            pollutant_name = split_pollutant_name[2]
+        else:
+            pollutant_name = split_pollutant_name[1]
+
         db_controller.set_csv_filename(csv_filename)
+        db_controller.set_pollutant_name(pollutant_name)
         
         if bounding_box:
             csv_filename = csv_filename.replace(".csv", f"_{region}.csv")
@@ -137,9 +148,6 @@ def extract_data_from_grib(wgrib_controller, db_controller, grib_files, bounding
 def path_leaf(path):
     head, tail = ntpath.split(path)
     return tail or ntpath.basename(head)
-            
-def create_database(db_controller, csv_filename, table_exists):
-    db_controller.populate_table(csv_filename, table_exists)
 
 def create_csv_filename(grib_file):
     return grib_file.replace("+","_").replace("-","_").replace(",","_").replace(".grib2",".csv").replace("__","_")

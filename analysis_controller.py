@@ -5,6 +5,8 @@ import config
 import csv
 import matplotlib
 import math
+import json
+import time
 from matplotlib import pyplot as plt
 from matplotlib import dates as md
 from datetime import datetime
@@ -13,19 +15,15 @@ class AnalysisController():
     def __init__(self, db_controller):
         self.db_controller = db_controller
         self.tables = {}
-        self.get_all_tables()
+        self.locations = []
         self.tablename = None
         self.data = None
 
-    def start(self, csv_path=None):
-
-        if csv_path:
-            with open(csv_path) as f:
-                reader = csv.reader(f)
-                next(reader, None)
-                for row in reader:
-                    pass
-                    #TODO - Loop all points in csv and find closest point, extract to csv
+    def start(self, json_path=None, table_name=None):
+        self.get_all_tables()
+        
+        if json_path and table_name:
+            self.extract_data_for_all_locations(json_path)
 
         while True:
             self.print_database_options()
@@ -92,7 +90,34 @@ class AnalysisController():
                     print(f"Mean value for pollutant = {mean}")
                 elif analysis_option == '3' and use_own_location:
                     self.extract_time_series()
+    
+
+    def extract_data_for_all_locations(self, json_path):
+
+        # makes a directory in the project's folder that contains verification data for the supplied locations
+        dir_name = config.verification_dir_name_template.format(int(time.time()))
+        try:
+            os.mkdir(dir_name, 0o755)
+        except OSError as e:
+            print(e)
         
+        with open(json_path) as json_file:
+            data = json.load(json_file)
+            self.locations.extend(data["stations"])
+
+        core_pollutants = config.core_pollutants
+
+        for location in self.locations:
+            station = location["placename"]
+            lon = float(location["longitude"])
+            lat = float(location["latitude"])
+            closest_point = self.db_controller.get_closest_point_data(lon, lat)
+            csv_filename = f"{dir_name}/{station}_{lat}_{lon}.csv"
+
+            for pollutant in core_pollutants:
+                self.data = self.db_controller.extract_data_for_point(closest_point[0], closest_point[1], pollutant)
+                self.write_data_to_csv(csv_filename, ignore_existing_file=True)
+
     def get_all_tables(self):
         tables = self.db_controller.get_all_tables()
         for i, table in enumerate(tables):
@@ -119,7 +144,7 @@ class AnalysisController():
         print("Type 'reset' at any time to change table")
         print("Type 'q' at any time to quit")
 
-    def write_data_to_csv(self, csv_path):
+    def write_data_to_csv(self, csv_path, ignore_existing_file=None):
         if self.data is None:
             print("No data to extract")
             return
@@ -127,17 +152,26 @@ class AnalysisController():
         line_count = len(self.data)
         count = 1
 
-        if os.path.exists(csv_path):
+        if os.path.exists(csv_path) and not ignore_existing_file:
             choice = input("\nA csv file already exists at that location. Do you want to overwrite it with this data? [Y/n]")
             overwrite = choice.lower() == "y"
             if overwrite:
                 open(csv_path, 'w').close() # this erases all data from the file without having to delete it
             else:
                 csv_path = input("\nPlease enter another path: ")
+
+        # the reason for 2 opens is to allow the first to write the header row if necessary
+        has_header = False
+        with open(csv_path, 'r') as f:
+            sniffer = csv.Sniffer()
+            has_header = sniffer.has_header(f.read(2048))
         
-        with open(csv_path, 'w', newline='') as f:
+        with open(csv_path, 'a', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(config.csv_header_row)
+
+            if not has_header:
+                writer.writerow(config.csv_header_row)                
+            
             for line in self.data:
                 percentage_complete = round((count / line_count) * 100, 3)
                 sys.stdout.write(f"Writing to CSV - Progress: {percentage_complete}%  \r")
@@ -146,7 +180,8 @@ class AnalysisController():
                 lon = line[1]
                 lat = line[2]
                 pollutant = line[3]
-                csv_row = [timestamp, lon, lat, pollutant]
+                pollutant_name = line[4]
+                csv_row = [timestamp, lon, lat, pollutant, pollutant_name]
                 writer.writerow(csv_row)
                 count += 1
         
