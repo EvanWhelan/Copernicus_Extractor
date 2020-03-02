@@ -5,6 +5,7 @@ import config
 import time
 from datetime import date, timedelta, datetime
 from wgrib import WgribController
+from xml.dom import minidom
 
 class CopernicusApi:
     def __init__(self, use_json):
@@ -28,12 +29,14 @@ class CopernicusApi:
                 reference_time = datetime.strftime(date, "%Y-%m-%dT%H:%M:%S%z")
                 formatted_reference_time = f"{reference_time}Z"
                 url = config.copernics_url_format.format(self.token, species, formatted_reference_time)
-                req = requests.get(url)
-                file_path = f"{self.dir_name}/{config.copernicus_api_file_format.format(model, species, formatted_reference_time)}"
-                self.grib_file_paths.append(file_path)
-                with open(file_path, 'wb') as f:
-                    f.write(req.content)
-        
+                req_successful = self.execute_request(url)
+
+                if req_successful:
+                    file_path = f"{self.dir_name}/{config.copernicus_api_file_format.format(model, species, formatted_reference_time)}"
+                    self.grib_file_paths.append(file_path)
+                    with open(file_path, 'wb') as f:
+                        f.write(req.content)
+
         return self.grib_file_paths
 
     # this creates a directory in which all files will be stored that are fetched via the API
@@ -42,7 +45,7 @@ class CopernicusApi:
             os.mkdir(self.dir_name, 0o755)
         except OSError as e:
             print(e)
-            
+    
     def get_user_options(self):
         if config.token == '':
             print("Error: Please provide a valid API token to the config.py file")
@@ -67,7 +70,7 @@ class CopernicusApi:
         start_date = input("Enter your start date in plain text (Example format: Jan 12 2019) :")
         self.start_date = datetime.strptime(start_date, '%b %d %Y')
 
-        while self.start_date < min_start_date:
+        while self.start_date < datetime.combine(date.today(), min_start_date):
             start_date = input("Enter a date within the last 30 days (Example format: Jan 12 2019) :")
             self.start_date = datetime.strptime(start_date, '%b %d %Y')
 
@@ -89,3 +92,19 @@ class CopernicusApi:
                 date = self.start_date + timedelta(days = i)
                 print(date)
                 self.dates.append(date)
+
+    def execute_request(self, url):
+        req = requests.get(url)
+        status_code = req.status_code
+
+        if status_code == 200:
+            return True
+        else:
+            response = minidom.parseString(req.text)
+            service_exception = response.getElementsByTagName("ServiceException")[0]
+            reason = service_exception.firstChild.data
+            print(f"{status_code} - {reason}")
+            return False
+            
+
+        
