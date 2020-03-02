@@ -17,9 +17,9 @@ class DatabaseController():
         self.csv_filename = None
         self.table_name = None
         self.pollutant_name = None
+        self.password = None
         self.username = config.username
         self.dbname = config.db_name
-        self.password = getpass(f"PostgreSQL Password for {self.username}: ")
         self.initialise_connection()
 
     def set_csv_filename(self, csv_filename):
@@ -32,14 +32,17 @@ class DatabaseController():
         self.pollutant_name = pollutant_name
 
     def initialise_connection(self):
-        try:
-            connection_string = "dbname='{}' user='{}' password='{}'".format(self.dbname, self.username, self.password)
-            self.conn = psy.connect(connection_string)
-            self.cursor = self.conn.cursor()
-            print("Connection successful!")
-        except Exception as e:
-            print("Unable to connect to database - {}".format(e))
-            quit()
+        while True:                
+            try:
+                self.password = getpass(f"PostgreSQL Password for {self.username}:")
+                connection_string = "dbname='{}' user='{}' password='{}'".format(self.dbname, self.username, self.password)
+                self.conn = psy.connect(connection_string)
+                self.cursor = self.conn.cursor()
+                print("Connection successful!")
+                break
+            except psy.Error as e:
+                print("Unable to connect to database - {}".format(e))
+                continue
     
     def create_copernicus_table(self):
         query = config.create_table_query_template.format(self.table_name)
@@ -47,7 +50,7 @@ class DatabaseController():
             self.cursor.execute(query)
             self.conn.commit()
             print("Table Created: Name = {}".format(self.table_name))
-        except Exception as e:
+        except psy.Error as e:
             print("Table creation failed {}".format(e))
             
     def populate_table(self, csv_file, table_exists):
@@ -81,7 +84,7 @@ class DatabaseController():
             lon = point[0][0]
             lat = point[0][1]
             return (lon, lat)
-        except Exception as e:
+        except psy.Error as e:
             print(e)
         
     def extract_data_for_point(self, lon, lat, pollutant=None):
@@ -93,23 +96,23 @@ class DatabaseController():
         try:
             data = self.execute_select(query)
             return data
-        except Exception as e:
+        except psy.Error as e:
             print(e)
         
     def extract_all_data(self):
         query = config.all_data_query.format(self.table_name)
         try:
             return self.execute_select(query)
-        except Exception as e:
+        except psy.Error as e:
             print(e)
             return None
 
-    def drop_table(self):
-        drop_query = config.drop_table_query_format.format(self.table_name)
+    def truncate_table(self):
+        truncate_query = config.truncate_table_query_format.format(self.table_name)
         try:
-            self.cursor.execute(drop_query)
+            self.cursor.execute(truncate_query)
             self.conn.commit()
-        except Exception as e:
+        except psy.Error as e:
                 print(e)
     
     def table_exists(self, specified_table_name):
@@ -126,7 +129,7 @@ class DatabaseController():
         try:
             self.cursor.execute(query)
             return self.cursor.fetchall()
-        except Exception as e:
+        except psy.Error as e:
             print(e)
             return None
 

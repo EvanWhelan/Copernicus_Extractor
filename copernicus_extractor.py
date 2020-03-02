@@ -31,7 +31,7 @@ def launch():
     analysis_controller = AnalysisController(db_controller)
 
     mode = args.mode.lower() # mode 'a' for analysis, mode 'e' for extraction
-    
+    tablename = None
     if mode == 'e':
         if not args.tablename:
             print("Usage Error: Argument --tablename required when in extract mode")
@@ -52,17 +52,17 @@ def launch():
         while table_exists:
             print("A table has already been created with that name")
             print("Press 1 to add this grib data to the existing database")
-            print("Press 2 to delete the table and repopulate it with the given file")
+            print("Press 2 to delete the current data and repopulate it with the given file")
             print("Press 3 to enter a new table name")
                         
             choice = input()
             if choice == '1':
                 break
             elif choice == '2':
-                db_controller.drop_table()
+                db_controller.truncate_table()
                 break
             elif choice == '3':
-                tablename = input("New Table Name : ")
+                tablename = input("New Table Name: ")
                 table_exists = db_controller.table_exists(tablename)
         
         region = None

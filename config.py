@@ -18,7 +18,7 @@ all_data_for_point_query_template = "SELECT timestamp, ST_X(coordinates), ST_Y(c
 pollutant_for_point_query_template = "SELECT timestamp, ST_X(coordinates), ST_Y(coordinates), pollutant, pollutant_name FROM {} WHERE ST_X(coordinates) = {} AND ST_Y(coordinates) = {} and pollutant_name = '{}' ORDER BY timestamp ASC;"
 all_tables_query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
 all_data_query = "SELECT timestamp, ST_X(coordinates), ST_Y(coordinates), pollutant, pollutant_name FROM {} ORDER BY timestamp ASC;"
-drop_table_query_format = "DROP TABLE IF EXISTS {};"
+truncate_table_query_format = "TRUNCATE TABLE {};"
 csv_header_row = ["timestamp", "lon", "lat", "pollutant", "pollutant_name"]
 copernicus_species = {
     1 : "CO", 
