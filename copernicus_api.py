@@ -48,26 +48,36 @@ class CopernicusApi:
             print("Error: Please provide a valid API token to the config.py file")
             quit()
         
-
         if self.use_json:
             self.species = config.core_pollutants
         else:
-            print("Select Species: ")   
+            print("Select Species:")   
             
             for key in self.species_options:
                 print(f"({key}) {self.species_options[key]}")
 
-            choice = input("Choice : ")
+            choice = input("Choice :")
             while not type(choice) is int and not int(choice) in self.species_options:
-                choice = input("Please enter an integer value corresponding to the options above: ")
+                choice = input("Please enter an integer value corresponding to the options above:")
 
             self.species.append(self.species_options[int(choice)])
+
+        min_start_date = date.today() - timedelta(days=30)
+
         start_date = input("Enter your start date in plain text (Example format: Jan 12 2019) :")
         self.start_date = datetime.strptime(start_date, '%b %d %Y')
 
-        end_date = input("Enter end date : ")
+        while self.start_date < min_start_date:
+            start_date = input("Enter a date within the last 30 days (Example format: Jan 12 2019) :")
+            self.start_date = datetime.strptime(start_date, '%b %d %Y')
+
+        end_date = input("Enter end date :")
         self.end_date = datetime.strptime(end_date, '%b %d %Y')
 
+        while self.end_date < self.start_date:
+            end_date = input("Enter a date equal to or after your start date:")
+            self.end_date = datetime.strptime(end_date, '%b %d %Y')
+        
         self.generate_date_range()
 
     def generate_date_range(self):
