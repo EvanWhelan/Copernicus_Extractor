@@ -17,11 +17,11 @@ class CopernicusApi:
         self.use_json = use_json
         self.dates = []
         self.dir_name = config.copernicus_dir_name.format(int(time.time()))
-        self.get_user_options()
         self.make_grib_directory()
         self.grib_file_paths = []
 
     def get_grib_data(self, species=None):
+        self.get_user_options()
         model = "ENSEMBLE"
 
         for species in self.species:                
@@ -29,13 +29,15 @@ class CopernicusApi:
                 reference_time = datetime.strftime(date, "%Y-%m-%dT%H:%M:%S%z")
                 formatted_reference_time = f"{reference_time}Z"
                 url = config.copernics_url_format.format(self.token, species, formatted_reference_time)
-                req_successful = self.execute_request(url)
+                response = self.execute_request(url)
+                req_successful = response[0] is True
 
                 if req_successful:
+                    req_content = response[1]
                     file_path = f"{self.dir_name}/{config.copernicus_api_file_format.format(model, species, formatted_reference_time)}"
                     self.grib_file_paths.append(file_path)
                     with open(file_path, 'wb') as f:
-                        f.write(req.content)
+                        f.write(req_content)
 
         return self.grib_file_paths
 
@@ -70,13 +72,13 @@ class CopernicusApi:
         start_date = input("Enter your start date in plain text (Example format: Jan 12 2019) :")
         self.start_date = datetime.strptime(start_date, '%b %d %Y')
 
-        while self.start_date < datetime.combine(date.today(), min_start_date):
+        while self.start_date.date() < min_start_date:
             start_date = input("Enter a date within the last 30 days (Example format: Jan 12 2019) :")
             self.start_date = datetime.strptime(start_date, '%b %d %Y')
 
         end_date = input("Enter end date :")
         self.end_date = datetime.strptime(end_date, '%b %d %Y')
-
+        
         while self.end_date < self.start_date:
             end_date = input("Enter a date equal to or after your start date:")
             self.end_date = datetime.strptime(end_date, '%b %d %Y')
@@ -94,17 +96,21 @@ class CopernicusApi:
                 self.dates.append(date)
 
     def execute_request(self, url):
-        req = requests.get(url)
-        status_code = req.status_code
+        try:
+            req = requests.get(url)
+            status_code = req.status_code
 
-        if status_code == 200:
-            return True
-        else:
-            response = minidom.parseString(req.text)
-            service_exception = response.getElementsByTagName("ServiceException")[0]
-            reason = service_exception.firstChild.data
-            print(f"{status_code} - {reason}")
-            return False
+            if status_code == 200:
+                return (True, req.content)
+            else:
+                response = minidom.parseString(req.text)
+                service_exception = response.getElementsByTagName("ServiceException")[0]
+                reason = service_exception.firstChild.data
+                print(f"{status_code} - {reason}")
+                return (False, None)
+        except requests.Exception as e:
+            print(e)
+            quit()
             
 
         

@@ -7,6 +7,8 @@ import matplotlib
 import math
 import json
 import time
+import mplcursors
+import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib import dates as md
 from datetime import datetime
@@ -24,22 +26,49 @@ class AnalysisController():
         
         if json_path and table_name:
             self.extract_data_for_all_locations(json_path)
+        
+        self.present_user_menus()
 
+    def present_user_menus(self):
         while True:
             self.print_database_options()
-            choice = input().lower()
+            choice = input("Choice: ").lower()
             if choice == 'q':
                 quit()
             elif choice == 'reset':
-                continue
+                self.present_user_menus()
             elif choice == '1':
                 self.print_table_options()
-                self.tablename = self.tables[int(input("\nSelect which table you want to query: "))]
+                selected_table = input("\nSelect which table you want to query: ")
+                if selected_table == 'q':
+                    quit()
+                elif selected_table == 'reset':
+                    self.present_user_menus()
+                
+                table_choice = ""
+                valid_input = False
+
+                while not valid_input:
+                    try:
+                        table_choice = int(input("Enter an integer value to choose from the displayed tables: "))
+                        
+                        if table_choice > len(self.tables):
+                            continue
+
+                        valid_input = True
+                    except Exception as e:
+                        continue
+
+                self.tablename = self.tables[int(table_choice)]
             elif choice == '2':
                 self.tablename = input("\nTable Name: ")
                 while not self.db_controller.table_exists(self.tablename):
-                    self.tablename = input("\nTable doesn't exist. Please enter another table name :")
-            
+                    tablename = input("\nTable doesn't exist. Please enter another table name :")
+                    if tablename == 'q':
+                        quit()
+                    elif tablename == 'reset':
+                        self.present_user_menus()
+
             self.db_controller.set_table_name(self.tablename)
 
             while choice != 'reset':
@@ -50,14 +79,14 @@ class AnalysisController():
                 if choice == 'q':
                     quit()
                 elif choice == 'reset':
-                    continue
+                    self.present_user_menus()
                 elif choice == '1':
                     co_ordinates = input("\nInput lon/lat in form (lon, lat): ").replace("(","").replace(")","").replace(" ", "").split(",")
-
-                    if co_ordinates == 'q':
+                    print(co_ordinates)
+                    if co_ordinates[0] == 'q':
                         quit()
-                    elif co_ordinates == 'reset':
-                        continue
+                    elif co_ordinates[0] == 'reset':
+                        self.present_user_menus()
                     use_own_location = True
 
                     lon = co_ordinates[0]
@@ -78,22 +107,24 @@ class AnalysisController():
 
                 analysis_option = input("\nChoice: ")
 
-                if choice == 'q':
+                if analysis_option == 'q':
                     quit()
-                elif choice == 'reset':
+                elif analysis_option == 'reset':
                     continue
-                if analysis_option == '1':
+                elif analysis_option == '1':
                     csv_path = input("\nPlease Enter An Absolute File Path: ")
+                    if csv_path == 'q':
+                        quit()
+                    elif csv_path == 'reset':
+                        continue
                     self.write_data_to_csv(csv_path)
                 elif analysis_option == '2':
                     mean = self.calculate_mean()
                     print(f"Mean value for pollutant = {mean}")
                 elif analysis_option == '3' and use_own_location:
                     self.extract_time_series()
-    
-
+                    
     def extract_data_for_all_locations(self, json_path):
-
         # makes a directory in the project's folder that contains verification data for the supplied locations
         dir_name = config.verification_dir_name_template.format(int(time.time()))
         try:
@@ -117,6 +148,7 @@ class AnalysisController():
             for pollutant in core_pollutants:
                 self.data = self.db_controller.extract_data_for_point(closest_point[0], closest_point[1], pollutant)
                 self.write_data_to_csv(csv_filename, ignore_existing_file=True)
+                self.extract_time_series()
 
     def get_all_tables(self):
         tables = self.db_controller.get_all_tables()
@@ -152,26 +184,41 @@ class AnalysisController():
         line_count = len(self.data)
         count = 1
 
-        if os.path.exists(csv_path) and not ignore_existing_file:
-            choice = input("\nA csv file already exists at that location. Do you want to overwrite it with this data? [Y/n]")
+        file_exists = os.path.exists(csv_path)
+
+        if not file_exists:
+            with open(csv_path, 'x'):
+                print("Created new CSV file")
+
+        if file_exists and not ignore_existing_file:
+            choice = input("\n csv file already exists at that location. Do you want to overwrite it with this data? [Y/n]")
+
+            if choice == 'q':
+                quit()
+            elif choice == 'reset':
+                self.present_user_menus()
+                return
+
             overwrite = choice.lower() == "y"
             if overwrite:
                 open(csv_path, 'w').close() # this erases all data from the file without having to delete it
             else:
                 csv_path = input("\nPlease enter another path: ")
 
-        # the reason for 2 opens is to allow the first to write the header row if necessary
-        has_header = False
-        with open(csv_path, 'r') as f:
-            sniffer = csv.Sniffer()
-            has_header = sniffer.has_header(f.read(2048))
+                if csv_path == 'q':
+                    quit()
+                elif csv_path == 'reset':
+                    self.present_user_menus()
+                    return 
+
+        file_is_empty = os.stat(csv_path).st_size == 0
         
         with open(csv_path, 'a', newline='') as f:
             writer = csv.writer(f)
 
-            if not has_header:
+            if file_is_empty:
                 writer.writerow(config.csv_header_row)                
-            
+
             for line in self.data:
                 percentage_complete = round((count / line_count) * 100, 3)
                 sys.stdout.write(f"Writing to CSV - Progress: {percentage_complete}%  \r")
@@ -190,22 +237,36 @@ class AnalysisController():
     def extract_time_series(self):
         times = []
         polls = []
+        
+        pollutant_name = self.db_controller.get_pollutant_name()
+
+        start_date = min(item[0] for item in self.data)
+        end_date = max(item[0] for item in self.data)
+
+        formatted_start_date = datetime.strftime(start_date, "%b %d %Y")
+        formatted_end_date = datetime.strftime(end_date, "%b %d %Y")
 
         for row in self.data:
-            time = datetime.strftime(row[0], "%Y-%m-%d %H:%M:%S")
+            time = row[0]
             poll = float(row[3])
             times.append(time)
             polls.append(poll)
             print(f"{time} - {poll}")
-            
-        print(len(times), len(polls))
-        plt.plot(times, polls, '--bo')
-        plt.xticks(rotation=90)
-        plt.grid()  
-        plt.title("Time Series of Pollutant Value")
+
+        co_ordinate = (self.data[0][1], self.data[0][2])
+        
+        fig, ax = plt.subplots()
+        ax.plot_date(times, polls, "--bo")
+
+        plt.xticks(rotation=60)
         plt.xlabel("Timestamp")
         plt.ylabel("Pollutant Value")
+
+        graph_title = f"{pollutant_name} Values For {formatted_start_date} to {formatted_end_date} For (lat, lon) = ({co_ordinate[0]},{co_ordinate[1]})"
+        
+        plt.tight_layout(h_pad=1.08)
         plt.show()
+        plt.savefig(f"{graph_title.replace(' ', '_')}.png")
 
     def calculate_mean(self):
         pollutants = []

@@ -35,8 +35,9 @@ copernicus_species = {
     # core_pulltants being defined as the five pollutants that are used to calculate the AQIH (Air Quality Index for Health)
     # by the EPA
 core_pollutants = ["O3", "PM10", "PM25", "NO2", "SO2"]
-token = ""
+token = "__5BxhCo_BB_gVwZJPH55UdnB-Zr_8eZIi9DOzS8Zrt6g__"
 copernics_url_format = "https://download.regional.atmosphere.copernicus.eu/services/CAMS50?token={}&grid=0.1&model=ENSEMBLE&package=ANALYSIS_{}_SURFACE&time=-24H-1H&referencetime={}&format=GRIB2"
 copernicus_dir_name = "copernicus_api_dir_{}"
 copernicus_api_file_format = "api_{}_{}_{}.grib2"
 verification_dir_name_template = "location_verification_{}"
+get_pollutant_name_template = "SELECT pollutant_name FROM {} LIMIT 1;"

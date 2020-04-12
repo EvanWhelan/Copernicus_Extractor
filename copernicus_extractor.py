@@ -4,6 +4,7 @@ import subprocess
 import argparse
 import config
 import requests
+import requests.exceptions
 import json
 import urllib.parse
 import analysis_controller
@@ -26,7 +27,6 @@ def launch():
     parser.add_argument('-tn', '--tablename', required=False, help='extract data from provided table name')
     parser.add_argument('-c', '--region', required=False, help='region around which to form a bounding box')
     args = parser.parse_args()
-
     db_controller = DatabaseController()
     analysis_controller = AnalysisController(db_controller)
 
@@ -55,7 +55,7 @@ def launch():
             print("Press 2 to delete the current data and repopulate it with the given file")
             print("Press 3 to enter a new table name")
                         
-            choice = input()
+            choice = input("Choice: ")
             if choice == '1':
                 break
             elif choice == '2':
@@ -93,7 +93,7 @@ def launch():
         elif args.api:
             use_json = True if args.json else False
             api_controller = CopernicusApi(use_json)
-       
+
             # 1. Accept time range and region
             # 2. Fetch all 5 pollutants and store in same database
             # 3. For each point in JSON file:
@@ -106,8 +106,8 @@ def launch():
             grib_files.extend(api_grib_files)
         
         if not args.region or bounding_box is None:
-            print("Warning: You have not inputted a region. This may result in csv files and databases that are multiple GB in size\n Are you sure you want to continue? [Y/n]")
-            if input().lower() != "y":
+            
+            if input("Warning: You have not inputted a region. This may result in csv files and databases that are multiple GB in size\n Are you sure you want to continue? [Y/n]: ").lower() != "y":
                 quit()
 
         if bounding_box is None and args.region:
@@ -157,16 +157,19 @@ def fetch_bounding_box(region):
     headers = {
         "User-Agent": "Copernicus_Satellite_Extractor"
     }
-    req = requests.get(bbox_url, headers=headers)
 
-    if req.status_code != 200:
-        print(f"Request Error: {req.status_code}")
-        return 'not found'
-    if has_bounding_box(req.text):
-        res = json.loads(req.text)[0]["boundingbox"]
-        return [float(co_ordinate) for co_ordinate in res]
-    else:
-        return 'not found'
+    try:
+        req = requests.get(bbox_url, headers=headers)
+        if req.status_code != 200:
+            print(f"Request Error: {req.status_code}")
+            return 'not found'
+        if has_bounding_box(req.text):
+            res = json.loads(req.text)[0]["boundingbox"]
+            return [float(co_ordinate) for co_ordinate in res]
+        else:
+            return 'not found'
+    except requests.exceptions.RequestException as e:
+        print(e)
 
 # intermediate check to ensure the api can find a bounding box for inputted region
 def has_bounding_box(query_result):

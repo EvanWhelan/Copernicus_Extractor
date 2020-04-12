@@ -31,18 +31,27 @@ class DatabaseController():
     def set_pollutant_name(self, pollutant_name):
         self.pollutant_name = pollutant_name
 
+    def get_pollutant_name(self):
+        return self.pollutant_name if self.pollutant_name else self.fetch_pollutant_name()
+
     def initialise_connection(self):
-        while True:                
-            try:
-                self.password = getpass(f"PostgreSQL Password for {self.username}:")
-                connection_string = "dbname='{}' user='{}' password='{}'".format(self.dbname, self.username, self.password)
-                self.conn = psy.connect(connection_string)
-                self.cursor = self.conn.cursor()
-                print("Connection successful!")
+        count = 1
+        while True:
+            if count == 3:
                 break
-            except psy.Error as e:
-                print("Unable to connect to database - {}".format(e))
-                continue
+            else:
+                try:
+                    self.password = getpass(f"PostgreSQL Password for {self.username}:")
+                    connection_string = "dbname='{}' user='{}' password='{}'".format(self.dbname, self.username, self.password)
+                    self.conn = psy.connect(connection_string)
+                    self.cursor = self.conn.cursor()
+                    print("Connection successful!")
+                    return 200
+                except psy.Error as e:
+                    print("Unable to connect to database - {}".format(e))
+                    count += 1
+                    continue
+        return -1
     
     def create_copernicus_table(self):
         query = config.create_table_query_template.format(self.table_name)
@@ -76,6 +85,11 @@ class DatabaseController():
                     print(e)
         
         print("Finished Building Table")
+
+    def fetch_pollutant_name(self):
+        query = config.get_pollutant_name_template.format(self.table_name)
+        res = self.execute_select(query)
+        return res[0][0]
 
     def get_closest_point_data(self, lon, lat):
         query = config.closest_point_query_template.format(self.table_name, lon, lat)
